@@ -38,8 +38,18 @@ CREATE TABLE IF NOT EXISTS TURNO (
     estado VARCHAR(30)
 );
 
+-- Registros reales de prueba
 INSERT INTO TUTOR (documento_identidad, nombre, telefono) VALUES ('1017000111', 'Carlos Perez', '3001234567');
-INSERT INTO MASCOTA (id_tutor, nombre, especie, sexo) VALUES (1, 'Tommy', 'Canino', 'Macho');
+INSERT INTO TUTOR (documento_identidad, nombre, telefono) VALUES ('1020304050', 'Maria Rodriguez', '3119876543');
+
+INSERT INTO MASCOTA (id_tutor, nombre, especie, sexo) VALUES (1, 'Rocky', 'Canino', 'Macho');
+INSERT INTO MASCOTA (id_tutor, nombre, especie, sexo) VALUES (2, 'Mimi', 'Felino', 'Hembra');
+
 INSERT INTO NIVEL_PRIORIDAD (nombre_prioridad, nivel, color_identificador) VALUES ('Urgencia', 1, 'Rojo');
-INSERT INTO PERSONAL_MEDICO (documento_identidad, nombre, rol) VALUES ('987654321', 'Dra. Laura', 'Veterinario');
+INSERT INTO NIVEL_PRIORIDAD (nombre_prioridad, nivel, color_identificador) VALUES ('Consulta General', 3, 'Verde');
+
+INSERT INTO PERSONAL_MEDICO (documento_identidad, nombre, rol) VALUES ('987654321', 'Dra. Laura Gomez', 'Veterinario');
+INSERT INTO PERSONAL_MEDICO (documento_identidad, nombre, rol) VALUES ('123456789', 'Dr. Andres Restrepo', 'Veterinario');
+
 INSERT INTO TURNO (codigo_turno, id_mascota, id_prioridad, id_medico, estado) VALUES ('T-001', 1, 1, 1, 'En espera');
+INSERT INTO TURNO (codigo_turno, id_mascota, id_prioridad, id_medico, estado) VALUES ('T-002', 2, 2, 2, 'Atendiendo');
