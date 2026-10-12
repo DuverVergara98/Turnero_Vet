@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turnero Vet - Módulo Administrador</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <!-- Navbar Superior -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm mb-4">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold fs-4" href="#"><i class="bi bi-hospital me-2"></i>Turnero Vet 🐾</a>
+            
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-light fw-bold btn-sm shadow-sm text-primary" onclick="abrirModalConfiguracion()" title="Configuración de la App">
+                    <i class="bi bi-gear-fill me-1"></i> Configuración
+                </button>
+                <button class="btn btn-outline-light fw-bold btn-sm" onclick="abrirPantallaTV()" title="Abrir Sala de Espera en nueva pestaña">
+                    <i class="bi bi-tv me-1"></i> Pantalla TV
+                </button>
+                <button class="btn btn-danger fw-bold btn-sm shadow-sm" onclick="cerrarSesion()" title="Cerrar Sesión actual">
+                    <i class="bi bi-box-arrow-right me-1"></i> Cerrar Sesión
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        <!-- Indicadores -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="card card-stat bg-white shadow-sm border-start border-primary border-4 p-3">
+                    <div class="text-muted small fw-bold">TOTAL TURNOS</div>
+                    <div class="fs-2 fw-bold text-primary" id="statTotal">0</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-stat bg-white shadow-sm border-start border-warning border-4 p-3">
+                    <div class="text-muted small fw-bold">EN ESPERA / LLAMANDO</div>
+                    <div class="fs-2 fw-bold text-warning" id="statEspera">0</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-stat bg-white shadow-sm border-start border-success border-4 p-3">
+                    <div class="text-muted small fw-bold">ATENDIDOS</div>
+                    <div class="fs-2 fw-bold text-success" id="statAtendidos">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pestañas Modulares -->
+        <ul class="nav nav-tabs mb-4 fw-bold" id="mainTabs">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#turnos-pane"><i class="bi bi-ticket-perforated me-1"></i> Control de Turnos y Tiempos</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#mascotas-pane"><i class="bi bi-heart-pulse me-1"></i> Mascotas & Tutores 🐾</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#medicos-pane"><i class="bi bi-person-badge me-1"></i> Personal Médico</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Pestaña Turnos -->
+            <div class="tab-pane fade show active" id="turnos-pane">
+                <div class="row align-items-center mb-3 g-2">
+                    <div class="col-md-5">
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control" id="inputFiltroTurnos" placeholder="Buscar por código, mascota, tutor o médico..." onkeyup="filtrarTablaTurnos()">
+                        </div>
+                    </div>
+                    <div class="col-md-7 text-end d-flex justify-content-end gap-2">
+                        <button class="btn btn-success fw-bold shadow-sm" onclick="exportarTurnosExcel()">
+                            <i class="bi bi-file-earmark-excel me-1"></i> Exportar Turnos a Excel
+                        </button>
+                        <button class="btn btn-primary fw-bold shadow-sm" onclick="prepararNuevoTurno()" data-bs-toggle="modal" data-bs-target="#modalTurno">
+                            <i class="bi bi-plus-circle me-1"></i> Nuevo Turno
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0" id="tablaTurnosElement">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Mascota & Tutor</th>
+                                        <th>Servicio / Motivo</th>
+                                        <th>Médico</th>
+                                        <th>Prioridad & Estado</th>
+                                        <th><i class="bi bi-clock me-1"></i>Hora Registro</th>
+                                        <th><i class="bi bi-hourglass-split me-1"></i>Tiempo Espera</th>
+                                        <th><i class="bi bi-stopwatch me-1"></i>Duración Consulta</th>
+                                        <th class="text-end">Acciones Rápidas</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaTurnos"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pestaña Mascotas & Tutores -->
+            <div class="tab-pane fade" id="mascotas-pane">
+                <div class="row align-items-center mb-3 g-2">
+                    <div class="col-md-5">
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control" id="inputFiltroMascotas" placeholder="Buscar por nombre, tutor, teléfono, peso..." onkeyup="filtrarTablaMascotas()">
+                        </div>
+                    </div>
+                    <div class="col-md-7 text-end d-flex justify-content-end gap-2">
+                        <button class="btn btn-success fw-bold shadow-sm" onclick="exportarMascotasExcel()">
+                            <i class="bi bi-file-earmark-excel me-1"></i> Exportar Mascotas & Tutores
+                        </button>
+                        <button class="btn btn-primary fw-bold shadow-sm" onclick="prepararNuevaMascota()" data-bs-toggle="modal" data-bs-target="#modalMascota">
+                            <i class="bi bi-plus-lg me-1"></i> Nueva Mascota / Tutor
+                        </button>
+                    </div>
+                </div>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Mascota</th>
+                                        <th>Tutor</th>
+                                        <th id="thTelTutor">Celular / WhatsApp</th>
+                                        <th>Especie / Raza</th>
+                                        <th id="thPesoMascota">Peso (kg)</th>
+                                        <th class="text-end">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaMascotas"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pestaña Médicos -->
+            <div class="tab-pane fade" id="medicos-pane">
+                <div class="row align-items-center mb-3 g-2">
+                    <div class="col-md-5">
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control" id="inputFiltroMedicos" placeholder="Buscar médico por nombre, especialidad o tarjeta..." onkeyup="filtrarTablaMedicos()">
+                        </div>
+                    </div>
+                    <div class="col-md-7 text-end d-flex justify-content-end gap-2">
+                        <button class="btn btn-success fw-bold shadow-sm" onclick="exportarMedicosExcel()">
+                            <i class="bi bi-file-earmark-excel me-1"></i> Exportar Médicos
+                        </button>
+                        <button class="btn btn-primary fw-bold shadow-sm" onclick="prepararNuevoMedico()" data-bs-toggle="modal" data-bs-target="#modalMedico">
+                            <i class="bi bi-plus-lg me-1"></i> Nuevo Médico
+                        </button>
+                    </div>
+                </div>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-0">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Especialidad</th>
+                                    <th>Tarjeta Prof.</th>
+                                    <th class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaMedicos"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuración de la App -->
+    <div class="modal fade" id="modalConfiguracion" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-gear-fill me-2 text-warning"></i>Configuración de la App</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formConfiguracion" onsubmit="guardarConfiguracion(event)">
+                    <div class="modal-body">
+                        <p class="text-muted small">Seleccione los campos adicionales que desea activar para la gestión de pacientes y tutores:</p>
+                        
+                        <h6 class="fw-bold text-primary mb-3"><i class="bi bi-person-vcard me-1"></i>Campos del Tutor / Propietario</h6>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="cfgTelTutor" checked>
+                            <label class="form-check-label fw-bold" for="cfgTelTutor">Pedir Celular / WhatsApp del Tutor 📱</label>
+                            <small class="d-block text-muted">Muestra el teléfono del tutor en las tablas y facilita contacto directo.</small>
+                        </div>
+                        <div class="form-check form-switch mb-4">
+                            <input class="form-check-input" type="checkbox" id="cfgDocTutor">
+                            <label class="form-check-label fw-bold" for="cfgDocTutor">Pedir Documento de Identidad (Cédula/NIT)</label>
+                        </div>
+
+                        <hr>
+
+                        <h6 class="fw-bold text-success mb-3"><i class="bi bi-heart-pulse me-1"></i>Campos de la Mascota / Paciente</h6>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="cfgPesoMascota" checked>
+                            <label class="form-check-label fw-bold" for="cfgPesoMascota">Pedir Peso de la Mascota (kg) ⚖️</label>
+                            <small class="d-block text-muted">Permite ingresar el peso en kg para dosificación y control veterinario.</small>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="cfgEdadMascota">
+                            <label class="form-check-label fw-bold" for="cfgEdadMascota">Pedir Edad / Fecha de Nacimiento 🎂</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary fw-bold"><i class="bi bi-save me-1"></i>Guardar Preferencias</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Asignar Consultorio y Llamar -->
+    <div class="modal fade" id="modalLlamar" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-megaphone-fill me-2"></i>Llamar Paciente</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formLlamarConsultorio">
+                    <div class="modal-body">
+                        <input type="hidden" id="llamarTurnoIndex">
+                        <label class="form-label fw-bold">Seleccione Consultorio:</label>
+                        <select class="form-select fw-bold" id="selectConsultorio" required>
+                            <option value="Consultorio 1">Consultorio 1</option>
+                            <option value="Consultorio 2">Consultorio 2</option>
+                            <option value="Consultorio 3">Consultorio 3</option>
+                            <option value="Sala de Urgencias">Sala de Urgencias</option>
+                            <option value="Laboratorio">Laboratorio</option>
+                        </select>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger btn-sm fw-bold"><i class="bi bi-broadcast me-1"></i>Llamar en TV</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Registrar / Editar Turno -->
+    <div class="modal fade" id="modalTurno" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="modalTurnoTitulo">Registrar Turno</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formTurno">
+                    <div class="modal-body">
+                        <input type="hidden" id="turnoIndex">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Código del Turno</label>
+                            <div class="input-group">
+                                <span class="input-group-text fw-bold bg-light">T-</span>
+                                <input type="text" class="form-control" id="codigoTurnoNumero" placeholder="01" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Buscar Paciente (Mascota o Tutor) 🐾</label>
+                            <input type="text" class="form-control" id="inputMascotaBusqueda" list="listaMascotasDatalist" placeholder="Escribe para buscar..." required autocomplete="off">
+                            <datalist id="listaMascotasDatalist"></datalist>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Tipo de Servicio / Motivo</label>
+                            <select class="form-select" id="selectServicio" required>
+                                <option value="Consulta General" selected>🩺 Consulta General</option>
+                                <option value="Consulta con Especialista">🩺 Consulta con Especialista</option>
+                                <option value="Vacunación">💉 Vacunación</option>
+                                <option value="Desparasitación">🐛 Desparasitación</option>
+                                <option value="Cirugía">✂️ Cirugía</option>
+                                <option value="Laboratorio">🔬 Laboratorio</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Médico Asignado</label>
+                            <select class="form-select" id="selectMedico" required></select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Prioridad</label>
+                            <select class="form-select" id="selectPrioridad">
+                                <option value="1">Alta - Urgencia 🔴</option>
+                                <option value="2" selected>Media - Consulta 🟡</option>
+                                <option value="3">Baja - Control 🟢</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Estado</label>
+                            <select class="form-select" id="selectEstado">
+                                <option value="En espera">En espera</option>
+                                <option value="Llamando">Llamando 📣</option>
+                                <option value="Atendiendo">Atendiendo</option>
+                                <option value="Atendido">Atendido</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Guardar Turno</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Mascota & Tutor con Campos Dinámicos -->
+    <div class="modal fade" id="modalMascota" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="modalMascotaTitulo">🐾 Registrar Mascota / Tutor</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formMascota">
+                    <div class="modal-body">
+                        <input type="hidden" id="mascotaIndex">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nombre Mascota</label>
+                            <input type="text" class="form-control" id="mascotaNombre" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nombre del Tutor</label>
+                            <input type="text" class="form-control" id="mascotaTutor" required>
+                        </div>
+                        
+                        <!-- Campo Dinámico: Celular del Tutor -->
+                        <div class="mb-3" id="campoGrupoTelTutor">
+                            <label class="form-label fw-bold">Celular / WhatsApp del Tutor 📱</label>
+                            <input type="text" class="form-control" id="mascotaTelTutor" placeholder="Ej: 300 123 4567">
+                        </div>
+
+                        <!-- Campo Dinámico: Documento Tutor -->
+                        <div class="mb-3" id="campoGrupoDocTutor" style="display: none;">
+                            <label class="form-label fw-bold">Cédula / Documento Tutor</label>
+                            <input type="text" class="form-control" id="mascotaDocTutor" placeholder="Ej: 1017123456">
+                        </div>
+
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label fw-bold">Especie</label>
+                                <input type="text" class="form-control" id="mascotaEspecie" placeholder="Canino, Felino...">
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label fw-bold">Raza</label>
+                                <input type="text" class="form-control" id="mascotaRaza">
+                            </div>
+                        </div>
+
+                        <!-- Campo Dinámico: Peso Mascota -->
+                        <div class="mb-3" id="campoGrupoPesoMascota">
+                            <label class="form-label fw-bold">Peso Mascota (kg) ⚖️</label>
+                            <input type="number" step="0.1" class="form-control" id="mascotaPeso" placeholder="Ej: 12.5">
+                        </div>
+
+                        <!-- Campo Dinámico: Edad Mascota -->
+                        <div class="mb-3" id="campoGrupoEdadMascota" style="display: none;">
+                            <label class="form-label fw-bold">Edad / Fecha de Nacimiento 🎂</label>
+                            <input type="text" class="form-control" id="mascotaEdad" placeholder="Ej: 2 años / 15-05-2022">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Guardar Mascota</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Médico -->
+    <div class="modal fade" id="modalMedico" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="modalMedicoTitulo">Registrar Médico</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formMedico">
+                    <div class="modal-body">
+                        <input type="hidden" id="medicoIndex">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nombre Completo</label>
+                            <input type="text" class="form-control" id="medicoNombre" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Especialidad</label>
+                            <input type="text" class="form-control" id="medicoEspecialidad" placeholder="Ej: Cirugía, Medicina General...">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Tarjeta Profesional</label>
+                            <input type="text" class="form-control" id="medicoTarjeta">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Guardar Médico</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

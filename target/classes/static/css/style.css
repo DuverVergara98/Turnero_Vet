@@ -1,0 +1,84 @@
+:root {
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --dark-bg: #111827;
+}
+
+body {
+    background-color: #f4f6f9;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar-brand {
+    font-size: 1.4rem;
+    letter-spacing: 0.5px;
+}
+
+.card-stat {
+    border: none;
+    border-radius: 12px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-stat:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.08) !important;
+}
+
+.badge-prioridad-alta {
+    background-color: #ffebe9;
+    color: #cf222e;
+    border: 1px solid rgba(207, 34, 46, 0.3);
+    font-weight: 700;
+}
+
+.badge-prioridad-media {
+    background-color: #fff8c5;
+    color: #9a6700;
+    border: 1px solid rgba(154, 103, 0, 0.3);
+    font-weight: 700;
+}
+
+.badge-prioridad-baja {
+    background-color: #dafbe1;
+    color: #1a7f37;
+    border: 1px solid rgba(26, 127, 55, 0.3);
+    font-weight: 700;
+}
+
+/* Estilos de la Pantalla Turnero TV */
+.turnero-tv-container {
+    background: var(--dark-bg);
+    color: #ffffff;
+    border-radius: 16px;
+    padding: 2rem;
+    min-height: 500px;
+}
+
+.turno-llamar-card {
+    background: #1f2937;
+    border-left: 8px solid #3b82f6;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    animation: pulseGlow 2s infinite alternate;
+}
+
+.turno-llamar-card.urgencia {
+    border-left-color: #ef4444;
+}
+
+.codigo-destacado {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #60a5fa;
+    letter-spacing: 2px;
+}
+
+@keyframes pulseGlow {
+    0% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
+    100% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.6); }
+}

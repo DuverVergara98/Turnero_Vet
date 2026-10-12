@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turnero Vet - Sala de Espera TV</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0f1d;
+            --card-bg: #111827;
+            --accent-blue: #00d2ff;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-yellow: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            scrollbar-width: none; /* Ocultar scrollbar en Firefox */
+        }
+
+        *::-webkit-scrollbar {
+            display: none; /* Ocultar scrollbar en Chrome/Safari/Edge */
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #ffffff;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header-tv {
+            background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+            border-bottom: 4px solid var(--accent-blue);
+            box-shadow: 0 4px 20px rgba(0,210,255,0.2);
+            flex-shrink: 0;
+        }
+
+        .main-tv-layout {
+            display: grid;
+            grid-template-columns: 2.3fr 1fr;
+            gap: 1.5rem;
+            padding: 1.2rem 2rem;
+            flex-grow: 1;
+            overflow: hidden;
+            height: calc(100vh - 140px);
+        }
+
+        .col-atencion-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .seccion-atencion {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            flex-grow: 1;
+            justify-content: start;
+            overflow: hidden;
+        }
+
+        /* Tarjeta Base Adaptativa */
+        .card-turno-tv {
+            background: #1e293b;
+            border-radius: 16px;
+            border-left: 8px solid var(--accent-blue);
+            padding: 1rem 1.4rem;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            flex-shrink: 1;
+            min-height: 0;
+        }
+
+        /* Escalado Dinámico por Antigüedad */
+        .card-turno-tv.reciente {
+            flex: 1.3;
+            border-left-width: 12px;
+            border-left-color: var(--accent-blue);
+            background: linear-gradient(135deg, #1e293b 0%, #172554 100%);
+            opacity: 1;
+        }
+
+        .card-turno-tv.reciente .codigo-tv {
+            font-size: 2.8rem;
+        }
+
+        .card-turno-tv.antiguo-1 {
+            flex: 1;
+            opacity: 0.88;
+            border-left-color: #0284c7;
+            transform: scale(0.98);
+        }
+
+        .card-turno-tv.antiguo-1 .codigo-tv {
+            font-size: 2.2rem;
+        }
+
+        .card-turno-tv.antiguo-2 {
+            flex: 0.8;
+            opacity: 0.72;
+            border-left-color: #475569;
+            transform: scale(0.95);
+            padding: 0.6rem 1.2rem;
+        }
+
+        .card-turno-tv.antiguo-2 .codigo-tv {
+            font-size: 1.8rem;
+        }
+
+        .card-turno-tv.urgencia {
+            border-left-color: var(--accent-red) !important;
+            background: #2a1215 !important;
+        }
+
+        .card-turno-tv.llamando {
+            border-left-color: var(--accent-yellow) !important;
+            background: #281e05 !important;
+            animation: pulseGlow 1.5s infinite alternate;
+        }
+
+        .codigo-tv {
+            font-weight: 900;
+            color: var(--accent-blue);
+            letter-spacing: 1px;
+            line-height: 1;
+        }
+
+        .consultorio-badge {
+            background: #0284c7;
+            color: #ffffff;
+            font-size: 1.1rem;
+            font-weight: 800;
+            padding: 0.3rem 0.8rem;
+            border-radius: 8px;
+        }
+
+        .seccion-proximos {
+            background: #0f172a;
+            border-radius: 20px;
+            border: 2px solid #334155;
+            padding: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .card-proximo {
+            background: #1e293b;
+            border-radius: 14px;
+            padding: 0.9rem 1.1rem;
+            border-left: 6px solid var(--accent-yellow);
+            margin-bottom: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        #anuncioGiganteOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(3, 7, 18, 0.96);
+            backdrop-filter: blur(12px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .anuncio-box {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border: 6px solid var(--accent-yellow);
+            border-radius: 32px;
+            padding: 3.5rem;
+            box-shadow: 0 0 100px rgba(245, 158, 11, 0.5);
+            animation: bouncePop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite alternate;
+            max-width: 90%;
+            width: 1050px;
+        }
+
+        @keyframes bouncePop {
+            0% { transform: scale(0.98) translateY(0); border-color: var(--accent-yellow); }
+            100% { transform: scale(1.03) translateY(-10px); border-color: var(--accent-red); box-shadow: 0 0 120px rgba(239, 68, 68, 0.8); }
+        }
+
+        @keyframes pulseGlow {
+            0% { transform: scale(1); box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+            100% { transform: scale(1.02); box-shadow: 0 0 25px rgba(245, 158, 11, 0.6); }
+        }
+
+        .footer-tv {
+            background: #0b1329;
+            border-top: 2px solid #1e293b;
+            padding: 0.6rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .reloj-digital {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--accent-blue);
+            font-family: monospace;
+        }
+
+        .bienvenida-banner {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 2px dashed #0284c7;
+            border-radius: 20px;
+            padding: 3rem 2rem;
+            text-align: center;
+            margin: auto 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header-tv py-3 px-4 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-hospital fs-1 text-info me-3"></i>
+            <div>
+                <h2 class="fw-bold mb-0 text-white">CLÍNICA VETERINARIA</h2>
+                <small class="text-info fw-bold fs-6">SALA DE ESPERA Y LLAMADO DE PACIENTES 🐾</small>
+            </div>
+        </div>
+        <div>
+            <span class="badge bg-danger fs-5 px-3 py-2"><i class="bi bi-broadcast me-2"></i>EN VIVO</span>
+        </div>
+    </header>
+
+    <!-- Main Layout sin Barras de Desplazamiento -->
+    <div class="main-tv-layout">
+        <!-- Columna Izquierda: Atendiendo y Llamando -->
+        <div class="col-atencion-wrapper">
+            <h4 class="fw-bold text-white mb-2 flex-shrink-0"><i class="bi bi-megaphone-fill text-warning me-2"></i>PACIENTES EN LLAMADO Y ATENCIÓN</h4>
+            <div class="seccion-atencion" id="gridTurnosTV"></div>
+        </div>
+
+        <!-- Columna Derecha: Próximos Turnos -->
+        <div class="seccion-proximos">
+            <h4 class="fw-bold text-warning mb-3 border-bottom border-secondary pb-2 flex-shrink-0">
+                <i class="bi bi-clock-history me-2"></i>PRÓXIMOS TURNOS
+            </h4>
+            <div id="contenedorProximos" class="flex-grow-1 overflow-hidden"></div>
+        </div>
+    </div>
+
+    <!-- Overlay Anuncio Gigante -->
+    <div id="anuncioGiganteOverlay">
+        <div class="anuncio-box text-center">
+            <div class="badge bg-warning text-dark fs-2 mb-3 fw-bold px-4 py-2">📣 TURNO LLAMADO A CONSULTORIO</div>
+            <div class="display-1 fw-bold text-info my-1" id="popupCodigo">T-01</div>
+            <div class="display-2 fw-bold text-white mb-2" id="popupMascota">🐾 Paciente</div>
+            <div class="fs-2 text-warning fw-bold mb-2" id="popupTutor">Tutor: -</div>
+            <div class="fs-4 text-info fw-bold mb-4" id="popupServicio">Servicio: Consulta General</div>
+            <div class="row g-3 justify-content-center mt-2">
+                <div class="col-md-5">
+                    <div class="p-3 bg-dark rounded-3 border border-secondary">
+                        <small class="text-muted d-block fw-bold fs-6">MÉDICO VETERINARIO</small>
+                        <span class="fs-3 fw-bold text-light" id="popupMedico">Dr. Médico</span>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="p-3 bg-primary rounded-3 border border-info">
+                        <small class="text-white-50 d-block fw-bold fs-6">POR FAVOR DIRÍJASE A</small>
+                        <span class="fs-2 fw-bold text-white" id="popupConsultorio">Consultorio 1</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer con Reloj Limpio -->
+    <footer class="footer-tv">
+        <div class="text-light fs-5">
+            <i class="bi bi-info-circle me-2 text-info"></i>Por favor permanezca atento a las indicaciones de la pantalla.
+        </div>
+        <div class="d-flex align-items-center gap-4">
+            <div class="text-end">
+                <div class="fw-bold text-light fs-5" id="fechaTV">--/--/----</div>
+            </div>
+            <div class="reloj-digital" id="relojTV">00:00</div>
+        </div>
+    </footer>
+
+    <script>
+        function actualizarReloj() {
+            const ahora = new Date();
+            document.getElementById('relojTV').innerText = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true });
+            document.getElementById('fechaTV').innerText = ahora.toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        setInterval(actualizarReloj, 1000);
+        actualizarReloj();
+
+        function reproducirChimeLlamado() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                const playTone = (freq, time, duration) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.5, ctx.currentTime + time);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + time + duration);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(ctx.currentTime + time);
+                    osc.stop(ctx.currentTime + time + duration);
+                };
+
+                playTone(392.00, 0, 0.5);   // Sol
+                playTone(523.25, 0.3, 0.5); // Do
+                playTone(659.25, 0.6, 0.9); // Mi
+            } catch (e) {
+                console.log("Audio no permitido:", e);
+            }
+        }
+
+        let ultimoTurnoLlamadoCodigo = null;
+        let timerAnuncio = null;
+
+        function cargarTurnosTV() {
+            let turnosData = JSON.parse(localStorage.getItem('turnos_vet_cache')) || [];
+            const grid = document.getElementById('gridTurnosTV');
+            const contProximos = document.getElementById('contenedorProximos');
+            grid.innerHTML = '';
+            contProximos.innerHTML = '';
+
+            // Mostrar máximo los 4 llamados más recientes para no saturar la pantalla
+            let activos = turnosData.filter(t => t.estado === 'Llamando' || t.estado === 'Atendiendo');
+            activos.sort((a, b) => (b.timestampLlamada || 0) - (a.timestampLlamada || 0));
+            activos = activos.slice(0, 4);
+
+            if (activos.length === 0) {
+                grid.innerHTML = `
+                    <div class="bienvenida-banner">
+                        <i class="bi bi-heart-pulse fs-1 text-info mb-2 d-block"></i>
+                        <h2 class="fw-bold text-white mb-2">¡Bienvenidos a nuestra Clínica Veterinaria! 🐾</h2>
+                        <p class="fs-5 text-light opacity-75 mb-0">En este momento no hay pacientes llamados a consultorio. Mantenga su turno a la mano.</p>
+                    </div>
+                `;
+            } else {
+                activos.forEach((t, idx) => {
+                    const esLlamando = t.estado === 'Llamando';
+                    const esUrgencia = t.prioridad.idPrioridad == 1;
+
+                    let escalaClase = 'reciente';
+                    if (idx === 1) escalaClase = 'antiguo-1';
+                    else if (idx >= 2) escalaClase = 'antiguo-2';
+
+                    grid.innerHTML += `
+                        <div class="card-turno-tv ${escalaClase} ${esLlamando ? 'llamando' : ''} ${esUrgencia ? 'urgencia' : ''}">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge ${esLlamando ? 'bg-danger' : 'bg-primary'} fs-6 fw-bold">${t.estado.toUpperCase()}</span>
+                                <span class="consultorio-badge">${t.consultorio || 'Consultorio 1'}</span>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="codigo-tv mb-1">${t.codigoTurno}</div>
+                                    <div class="fs-3 fw-bold text-white text-truncate" style="max-width: 320px;">🐾 ${t.mascota.nombre}</div>
+                                    <div class="text-warning fw-bold fs-5 text-truncate" style="max-width: 320px;">Tutor: ${t.mascota.nombreTutor}</div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-secondary mb-1 d-inline-block fw-bold">${t.servicio || 'Consulta General'}</span>
+                                    <div class="text-info fw-bold fs-5"><i class="bi bi-person-badge me-1"></i>${t.medico.nombre}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Próximos 2 Turnos en Espera
+            const enEspera = turnosData.filter(t => t.estado === 'En espera');
+            const proximos2 = enEspera.slice(0, 2);
+
+            if (proximos2.length === 0) {
+                contProximos.innerHTML = `<div class="text-muted fs-5 p-2">No hay más turnos en fila de espera.</div>`;
+            } else {
+                proximos2.forEach((p, i) => {
+                    contProximos.innerHTML += `
+                        <div class="card-proximo">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-warning fs-5">#${i + 1} EN FILA</span>
+                                <span class="badge bg-secondary fs-6">${p.codigoTurno}</span>
+                            </div>
+                            <div class="fs-4 fw-bold text-white text-truncate">🐾 ${p.mascota.nombre}</div>
+                            <small class="text-muted d-block mb-1 text-truncate">Tutor: ${p.mascota.nombreTutor}</small>
+                            <small class="badge bg-dark text-info border border-secondary">${p.servicio || 'Consulta General'}</small>
+                        </div>
+                    `;
+                });
+            }
+
+            // Evaluar disparo del Anuncio Gigante en Vivo (solo si el llamado ocurrió en los últimos 10s)
+            const eventoLlamado = JSON.parse(localStorage.getItem('ultimo_llamado_event'));
+            const ahora = new Date().getTime();
+
+            if (eventoLlamado && eventoLlamado.timestamp && (ahora - eventoLlamado.timestamp < 10000)) {
+                if (eventoLlamado.timestamp !== ultimoTurnoLlamadoCodigo) {
+                    ultimoTurnoLlamadoCodigo = eventoLlamado.timestamp;
+                    mostrarAnuncioGigante(eventoLlamado);
+                }
+            } else {
+                document.getElementById('anuncioGiganteOverlay').style.display = 'none';
+            }
+        }
+
+        function mostrarAnuncioGigante(t) {
+            document.getElementById('popupCodigo').innerText = t.codigoTurno;
+            document.getElementById('popupMascota').innerText = `🐾 ${t.mascota.nombre}`;
+            document.getElementById('popupTutor').innerText = `Tutor: ${t.mascota.nombreTutor}`;
+            document.getElementById('popupServicio').innerText = `Servicio: ${t.servicio || 'Consulta General'}`;
+            document.getElementById('popupMedico').innerText = t.medico.nombre;
+            document.getElementById('popupConsultorio').innerText = t.consultorio || 'Consultorio 1';
+
+            const overlay = document.getElementById('anuncioGiganteOverlay');
+            overlay.style.display = 'flex';
+            reproducirChimeLlamado();
+
+            if (timerAnuncio) clearTimeout(timerAnuncio);
+            
+            timerAnuncio = setTimeout(() => {
+                overlay.style.display = 'none';
+                pasarAutomaticoAAtendiendo(t.codigoTurno);
+            }, 10000);
+        }
+
+        function pasarAutomaticoAAtendiendo(codigoTurno) {
+            let turnosData = JSON.parse(localStorage.getItem('turnos_vet_cache')) || [];
+            const idx = turnosData.findIndex(t => t.codigoTurno === codigoTurno);
+            if (idx !== -1 && turnosData[idx].estado === 'Llamando') {
+                turnosData[idx].estado = 'Atendiendo';
+                localStorage.setItem('turnos_vet_cache', JSON.stringify(turnosData));
+                cargarTurnosTV();
+            }
+        }
+
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'turnos_vet_cache' || e.key === 'ultimo_llamado_event') {
+                cargarTurnosTV();
+            }
+        });
+
+        cargarTurnosTV();
+        setInterval(cargarTurnosTV, 2000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turnero Vet - Acceso e Inicio de Sesión</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-vet: #0d6efd;
+            --secondary-vet: #00c6ff;
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0d6efd 100%);
+        }
+
+        body {
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            padding: 1.5rem;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 440px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .login-header {
+            background: linear-gradient(135deg, #0d6efd 0%, #0072ff 100%);
+            color: white;
+            padding: 2.5rem 2rem 1.8rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .login-header .paw-badge {
+            width: 70px;
+            height: 70px;
+            background: white;
+            color: #0d6efd;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            margin: 0 auto 1rem;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+
+        .nav-pills .nav-link {
+            color: #6c757d;
+            font-weight: 700;
+            border-radius: 12px;
+            padding: 0.6rem 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd;
+            color: white;
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+        }
+
+        .form-control, .form-select {
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            border: 1.5px solid #e2e8f0;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+        }
+
+        .btn-vet {
+            background: linear-gradient(135deg, #0d6efd 0%, #0072ff 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 0.8rem;
+            font-weight: 700;
+            font-size: 1.05rem;
+            box-shadow: 0 6px 18px rgba(13, 110, 253, 0.3);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-vet:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 22px rgba(13, 110, 253, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <!-- Encabezado con Ícono Veterinario -->
+        <div class="login-header">
+            <div class="paw-badge">
+                <i class="bi bi-hospital"></i>
+            </div>
+            <h3 class="fw-bold mb-1">Turnero Vet 🐾</h3>
+            <p class="mb-0 opacity-75 small fw-semibold">Gestión de Citas y Control de Pacientes</p>
+        </div>
+
+        <div class="p-4">
+            <!-- Alertas de Error o Éxito -->
+            <div id="alertMessage" class="alert alert-danger d-none fw-bold small text-center rounded-3 mb-3" role="alert"></div>
+
+            <!-- Pestañas para Alternar entre Ingresar y Registrarse -->
+            <ul class="nav nav-pills nav-justified mb-4 bg-light p-1 rounded-3" id="authTabs" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" id="login-tab" data-bs-toggle="pill" data-bs-target="#pane-login" type="button" onclick="limpiarAlertas()">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Ingresar
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="register-tab" data-bs-toggle="pill" data-bs-target="#pane-register" type="button" onclick="limpiarAlertas()">
+                        <i class="bi bi-person-plus me-1"></i> Registrarse
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="authTabsContent">
+                <!-- FORMULARIO 1: INICIAR SESIÓN -->
+                <div class="tab-pane fade show active" id="pane-login">
+                    <form onsubmit="procesarInicioSesion(event)">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">USUARIO O CORREO</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
+                                <input type="text" class="form-control border-start-0" id="loginUsuario" placeholder="admin" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small text-muted">CONTRASEÑA</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
+                                <input type="password" class="form-control border-start-0" id="loginPassword" placeholder="****" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-vet w-100 text-white">
+                            Iniciar Sesión <i class="bi bi-arrow-right-short ms-1 fs-5 align-middle"></i>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- FORMULARIO 2: REGISTRARSE -->
+                <div class="tab-pane fade" id="pane-register">
+                    <form onsubmit="procesarRegistro(event)">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">NOMBRE COMPLETO</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-person-vcard text-muted"></i></span>
+                                <input type="text" class="form-control border-start-0" id="regNombre" placeholder="Dr. Juan Pérez" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">CORREO / USUARIO</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+                                <input type="text" class="form-control border-start-0" id="regEmail" placeholder="medico" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">ROL EN LA CLÍNICA</label>
+                            <select class="form-select" id="regRol" required>
+                                <option value="Recepción">Recepción / Auxiliar</option>
+                                <option value="Veterinario">Médico Veterinario</option>
+                                <option value="Administrador">Administrador General</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small text-muted">CREAR CONTRASEÑA</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-key text-muted"></i></span>
+                                <input type="password" class="form-control border-start-0" id="regPassword" placeholder="••••••••" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-vet w-100 text-white">
+                            Crear Cuenta <i class="bi bi-check-circle ms-1 align-middle"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-light p-3 text-center border-top">
+            <small class="text-muted fw-bold">Turnero Vet &copy; 2026 - Módulo de Control</small>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Inicializar lista de usuarios válidos en localStorage
+        function obtenerUsuarios() {
+            const usuariosGuardados = localStorage.getItem('vet_usuarios');
+            if (usuariosGuardados) {
+                return JSON.parse(usuariosGuardados);
+            }
+            // Usuario por defecto inicial
+            const defaultUsers = [
+                { usuario: 'admin', pass: '****', nombre: 'Administrador', rol: 'Administrador' }
+            ];
+            localStorage.setItem('vet_usuarios', JSON.stringify(defaultUsers));
+            return defaultUsers;
+        }
+
+        function mostrarError(mensaje) {
+            const alertBox = document.getElementById('alertMessage');
+            alertBox.className = 'alert alert-danger fw-bold small text-center rounded-3 mb-3';
+            alertBox.innerText = mensaje;
+            alertBox.classList.remove('d-none');
+        }
+
+        function mostrarExito(mensaje) {
+            const alertBox = document.getElementById('alertMessage');
+            alertBox.className = 'alert alert-success fw-bold small text-center rounded-3 mb-3';
+            alertBox.innerText = mensaje;
+            alertBox.classList.remove('d-none');
+        }
+
+        function limpiarAlertas() {
+            document.getElementById('alertMessage').classList.add('d-none');
+        }
+
+        function procesarInicioSesion(e) {
+            e.preventDefault();
+            limpiarAlertas();
+
+            const userVal = document.getElementById('loginUsuario').value.trim().toLowerCase();
+            const passVal = document.getElementById('loginPassword').value.trim();
+
+            const listaUsuarios = obtenerUsuarios();
+            const usuarioValido = listaUsuarios.find(u => u.usuario.toLowerCase() === userVal && u.pass === passVal);
+
+            if (usuarioValido) {
+                mostrarExito("¡Credenciales correctas! Ingresando al panel...");
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 800);
+            } else {
+                mostrarError("⚠️ Usuario o contraseña incorrectos. Intente de nuevo.");
+            }
+        }
+
+        function procesarRegistro(e) {
+            e.preventDefault();
+            limpiarAlertas();
+
+            const nombreVal = document.getElementById('regNombre').value.trim();
+            const userVal = document.getElementById('regEmail').value.trim().toLowerCase();
+            const passVal = document.getElementById('regPassword').value.trim();
+            const rolVal = document.getElementById('regRol').value;
+
+            const listaUsuarios = obtenerUsuarios();
+            const existe = listaUsuarios.some(u => u.usuario.toLowerCase() === userVal);
+
+            if (existe) {
+                mostrarError("⚠️ El usuario o correo ya se encuentra registrado.");
+                return;
+            }
+
+            listaUsuarios.push({
+                usuario: userVal,
+                pass: passVal,
+                nombre: nombreVal,
+                rol: rolVal
+            });
+
+            localStorage.setItem('vet_usuarios', JSON.stringify(listaUsuarios));
+            mostrarExito("¡Cuenta creada exitosamente! Ya puedes iniciar sesión.");
+
+            // Cambiar a la pestaña de Ingresar automáticamente
+            setTimeout(() => {
+                const loginTab = new bootstrap.Tab(document.getElementById('login-tab'));
+                loginTab.show();
+                document.getElementById('loginUsuario').value = userVal;
+                document.getElementById('loginPassword').value = passVal;
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
