@@ -1,0 +1,19 @@
+# Compilacion y Binarios Java
+/target/
+/*.jar
+/*.war
+
+# Archivos de Base de Datos H2 local
+/data/
+*.db
+*.mv.db
+*.trace.db
+
+# Scripts temporales de PowerShell
+/*.ps1
+
+# Entorno e IDEs
+/.idea/
+/.vscode/
+/*.iml
+*.log
