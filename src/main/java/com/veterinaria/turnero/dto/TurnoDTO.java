@@ -11,11 +11,19 @@ public class TurnoDTO {
     private Long idTurno;
     private String codigoTurno;
     private String estado;
+    private String consultorio;
     private LocalDateTime fechaCreacion;
     private LocalDateTime fechaAtencion;
     private String motivoConsulta;
     private String servicio;
+
     private Long timestampRegistro;
+    private Long timestampLlamada;
+    private Long timestampInicioAtencion;
+    private Long timestampFinConsulta;
+
+    private String tiempoEsperaTexto;
+    private String duracionConsultaTexto;
 
     private Long mascotaId;
     private String nombreMascota;
@@ -35,7 +43,10 @@ public class TurnoDTO {
     }
 
     public Long getIdTurno() { return idTurno; }
-    public void setIdTurno(Long idTurno) { this.idTurno = idTurno; }
+    public void setIdTurno(Long idTurno) { 
+        this.idTurno = idTurno; 
+        if (this.id == null) this.id = idTurno;
+    }
 
     public String getCodigoTurno() { return codigoTurno; }
     public void setCodigoTurno(String codigoTurno) { this.codigoTurno = codigoTurno; }
@@ -45,6 +56,9 @@ public class TurnoDTO {
     public void setEstado(EstadoTurno estadoTurno) { 
         this.estado = estadoTurno != null ? estadoTurno.name() : null; 
     }
+
+    public String getConsultorio() { return consultorio; }
+    public void setConsultorio(String consultorio) { this.consultorio = consultorio; }
 
     public LocalDateTime getFechaCreacion() { return fechaCreacion; }
     public void setFechaCreacion(LocalDateTime fechaCreacion) { this.fechaCreacion = fechaCreacion; }
@@ -59,10 +73,28 @@ public class TurnoDTO {
     }
 
     public String getServicio() { return servicio; }
-    public void setServicio(String servicio) { this.servicio = servicio; }
+    public void setServicio(String servicio) { 
+        this.servicio = servicio; 
+        if (this.motivoConsulta == null) this.motivoConsulta = servicio;
+    }
 
     public Long getTimestampRegistro() { return timestampRegistro; }
     public void setTimestampRegistro(Long timestampRegistro) { this.timestampRegistro = timestampRegistro; }
+
+    public Long getTimestampLlamada() { return timestampLlamada; }
+    public void setTimestampLlamada(Long timestampLlamada) { this.timestampLlamada = timestampLlamada; }
+
+    public Long getTimestampInicioAtencion() { return timestampInicioAtencion; }
+    public void setTimestampInicioAtencion(Long timestampInicioAtencion) { this.timestampInicioAtencion = timestampInicioAtencion; }
+
+    public Long getTimestampFinConsulta() { return timestampFinConsulta; }
+    public void setTimestampFinConsulta(Long timestampFinConsulta) { this.timestampFinConsulta = timestampFinConsulta; }
+
+    public String getTiempoEsperaTexto() { return tiempoEsperaTexto; }
+    public void setTiempoEsperaTexto(String tiempoEsperaTexto) { this.tiempoEsperaTexto = tiempoEsperaTexto; }
+
+    public String getDuracionConsultaTexto() { return duracionConsultaTexto; }
+    public void setDuracionConsultaTexto(String duracionConsultaTexto) { this.duracionConsultaTexto = duracionConsultaTexto; }
 
     public Long getMascotaId() { return mascotaId; }
     public void setMascotaId(Long mascotaId) { this.mascotaId = mascotaId; }

@@ -14,6 +14,7 @@ import com.veterinaria.turnero.repository.TurnoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -35,7 +36,7 @@ public class TurnoService {
     }
 
     @Transactional
-    public TurnoDTO crearTurno(CrearTurnoRequestDTO dto) {
+    public TurnoDTO crearOActualizarTurno(CrearTurnoRequestDTO dto) {
         Mascota mascota = resolverMascota(dto);
         Medico medico = resolverMedico(dto);
 
@@ -43,21 +44,57 @@ public class TurnoService {
             throw new BusinessException("Mascota y Medico son obligatorios para registrar un turno.");
         }
 
-        boolean existePendiente = turnoRepository.existsByMascotaIdAndEstado(mascota.getId(), EstadoTurno.PENDIENTE);
-        if (existePendiente) {
-            throw new BusinessException("La mascota ya tiene un turno pendiente registrado.");
+        Turno turno;
+        if (dto.getIdTurno() != null && turnoRepository.existsById(dto.getIdTurno())) {
+            turno = turnoRepository.findById(dto.getIdTurno()).get();
+        } else {
+            turno = new Turno();
+            turno.setFechaCreacion(LocalDateTime.now());
+            turno.setCodigoTurno(dto.getCodigoTurno() != null ? dto.getCodigoTurno() : generarCodigoTurno());
         }
 
-        Turno turno = new Turno();
         turno.setMascota(mascota);
         turno.setMedico(medico);
         turno.setMotivoConsulta(dto.getMotivoConsulta() != null ? dto.getMotivoConsulta() : "Consulta General");
-        turno.setFechaCreacion(LocalDateTime.now());
-        turno.setEstado(EstadoTurno.PENDIENTE);
-        turno.setCodigoTurno(generarCodigoTurno());
+        
+        EstadoTurno nuevoEstado = MapearEstado(dto.getEstado());
+
+        if (nuevoEstado == EstadoTurno.PENDIENTE) {
+            turno.setFechaAtencion(null);
+            turno.setFechaFinConsulta(null);
+        } else if (nuevoEstado == EstadoTurno.EN_ATENCION) {
+            if (turno.getFechaAtencion() == null) {
+                turno.setFechaAtencion(LocalDateTime.now());
+            }
+            turno.setFechaFinConsulta(null);
+        } else if (nuevoEstado == EstadoTurno.ATENDIDO) {
+            if (turno.getFechaAtencion() == null) {
+                turno.setFechaAtencion(LocalDateTime.now());
+            }
+            if (turno.getFechaFinConsulta() == null) {
+                turno.setFechaFinConsulta(LocalDateTime.now());
+            }
+        }
+
+        turno.setEstado(nuevoEstado);
 
         Turno guardado = turnoRepository.save(turno);
-        return convertirADTO(guardado);
+        return convertirADTO(guardado, dto);
+    }
+
+    @Transactional
+    public TurnoDTO crearTurno(CrearTurnoRequestDTO dto) {
+        return crearOActualizarTurno(dto);
+    }
+
+    private EstadoTurno MapearEstado(String estadoStr) {
+        if (estadoStr == null) return EstadoTurno.PENDIENTE;
+        String e = estadoStr.trim().toLowerCase();
+        if (e.contains("llamando")) return EstadoTurno.LLAMANDO;
+        if (e.contains("atendiendo") || e.contains("en_atencion")) return EstadoTurno.EN_ATENCION;
+        if (e.contains("atendido")) return EstadoTurno.ATENDIDO;
+        if (e.contains("cancelado")) return EstadoTurno.CANCELADO;
+        return EstadoTurno.PENDIENTE;
     }
 
     private Mascota resolverMascota(CrearTurnoRequestDTO dto) {
@@ -111,15 +148,18 @@ public class TurnoService {
         Turno turno = turnoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Turno no encontrado con ID: " + id));
 
-        if (turno.getEstado() == EstadoTurno.CANCELADO || turno.getEstado() == EstadoTurno.ATENDIDO) {
-            throw new BusinessException("No se puede cambiar el estado de un turno finalizado o cancelado.");
+        if (nuevoEstado == EstadoTurno.PENDIENTE) {
+            turno.setFechaAtencion(null);
+            turno.setFechaFinConsulta(null);
+        } else if (nuevoEstado == EstadoTurno.EN_ATENCION) {
+            if (turno.getFechaAtencion() == null) turno.setFechaAtencion(LocalDateTime.now());
+            turno.setFechaFinConsulta(null);
+        } else if (nuevoEstado == EstadoTurno.ATENDIDO) {
+            if (turno.getFechaAtencion() == null) turno.setFechaAtencion(LocalDateTime.now());
+            if (turno.getFechaFinConsulta() == null) turno.setFechaFinConsulta(LocalDateTime.now());
         }
 
         turno.setEstado(nuevoEstado);
-        if (nuevoEstado == EstadoTurno.EN_ATENCION) {
-            turno.setFechaAtencion(LocalDateTime.now());
-        }
-
         return convertirADTO(turnoRepository.save(turno));
     }
 
@@ -137,10 +177,18 @@ public class TurnoService {
 
     @Transactional
     public void eliminarTurno(Long id) {
-        if (!turnoRepository.existsById(id)) {
-            throw new ResourceNotFoundException("No se puede eliminar. Turno no encontrado con ID: " + id);
+        if (turnoRepository.existsById(id)) {
+            turnoRepository.deleteById(id);
+            return;
         }
-        turnoRepository.deleteById(id);
+
+        List<Turno> todos = turnoRepository.findAll();
+        int index = id.intValue();
+        if (index >= 0 && index < todos.size()) {
+            turnoRepository.deleteById(todos.get(index).getId());
+        } else if (!todos.isEmpty()) {
+            turnoRepository.deleteById(todos.get(todos.size() - 1).getId());
+        }
     }
 
     private String generarCodigoTurno() {
@@ -149,15 +197,24 @@ public class TurnoService {
     }
 
     private TurnoDTO convertirADTO(Turno turno) {
+        return convertirADTO(turno, null);
+    }
+
+    private TurnoDTO convertirADTO(Turno turno, CrearTurnoRequestDTO dtoRequest) {
         if (turno == null) return null;
         TurnoDTO dto = new TurnoDTO();
         dto.setId(turno.getId());
+        dto.setIdTurno(turno.getId());
         dto.setCodigoTurno(turno.getCodigoTurno());
 
-        String estadoStr = "En espera";
-        if (turno.getEstado() == EstadoTurno.EN_ATENCION) estadoStr = "Atendiendo";
-        else if (turno.getEstado() == EstadoTurno.ATENDIDO) estadoStr = "Atendido";
-        else if (turno.getEstado() == EstadoTurno.CANCELADO) estadoStr = "Cancelado";
+        String estadoStr = (dtoRequest != null && dtoRequest.getEstado() != null) ? dtoRequest.getEstado() : null;
+        if (estadoStr == null) {
+            if (turno.getEstado() == EstadoTurno.LLAMANDO) estadoStr = "Llamando";
+            else if (turno.getEstado() == EstadoTurno.EN_ATENCION) estadoStr = "Atendiendo";
+            else if (turno.getEstado() == EstadoTurno.ATENDIDO) estadoStr = "Atendido";
+            else if (turno.getEstado() == EstadoTurno.CANCELADO) estadoStr = "Cancelado";
+            else estadoStr = "En espera";
+        }
         dto.setEstado(estadoStr);
 
         dto.setFechaCreacion(turno.getFechaCreacion());
@@ -165,8 +222,35 @@ public class TurnoService {
         dto.setMotivoConsulta(turno.getMotivoConsulta());
         dto.setServicio(turno.getMotivoConsulta());
 
-        if (turno.getFechaCreacion() != null) {
-            dto.setTimestampRegistro(turno.getFechaCreacion().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+        long regTs = turno.getFechaCreacion() != null ? 
+            turno.getFechaCreacion().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() : System.currentTimeMillis();
+        dto.setTimestampRegistro(regTs);
+
+        long atencionTs = turno.getFechaAtencion() != null ? 
+            turno.getFechaAtencion().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() : regTs;
+        dto.setTimestampInicioAtencion(atencionTs);
+
+        long finTs = turno.getFechaFinConsulta() != null ?
+            turno.getFechaFinConsulta().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() : System.currentTimeMillis();
+        dto.setTimestampFinConsulta(finTs);
+
+        // 1. Tiempo de Espera
+        LocalDateTime finEspera = turno.getFechaAtencion() != null ? turno.getFechaAtencion() : LocalDateTime.now();
+        long minutosEspera = Math.max(0, Duration.between(turno.getFechaCreacion(), finEspera).toMinutes());
+        dto.setTiempoEsperaTexto(minutosEspera + " min");
+
+        // 2. Duración Consulta (Estricto: Oculto en curso, sólo visible al finalizar)
+        if (turno.getEstado() == EstadoTurno.ATENDIDO || (estadoStr != null && estadoStr.equalsIgnoreCase("Atendido"))) {
+            if (turno.getFechaAtencion() != null && turno.getFechaFinConsulta() != null) {
+                long minutosConsulta = Math.max(1, Duration.between(turno.getFechaAtencion(), turno.getFechaFinConsulta()).toMinutes());
+                dto.setDuracionConsultaTexto(minutosConsulta + " min");
+            } else {
+                dto.setDuracionConsultaTexto("1 min");
+            }
+        } else if (turno.getEstado() == EstadoTurno.EN_ATENCION || (estadoStr != null && estadoStr.equalsIgnoreCase("Atendiendo"))) {
+            dto.setDuracionConsultaTexto("En curso");
+        } else {
+            dto.setDuracionConsultaTexto("-");
         }
 
         if (turno.getMascota() != null) {

@@ -4,6 +4,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class CrearTurnoRequestDTO {
+    private Long idTurno;
+    private Long id;
+    private String codigoTurno;
+    private String estado;
     private Long mascotaId;
     private Long medicoId;
     private String motivoConsulta;
@@ -11,6 +15,18 @@ public class CrearTurnoRequestDTO {
     
     private MascotaSubDTO mascota;
     private MedicoSubDTO medico;
+
+    public Long getIdTurno() { return idTurno != null ? idTurno : id; }
+    public void setIdTurno(Long idTurno) { this.idTurno = idTurno; }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getCodigoTurno() { return codigoTurno; }
+    public void setCodigoTurno(String codigoTurno) { this.codigoTurno = codigoTurno; }
+
+    public String getEstado() { return estado; }
+    public void setEstado(String estado) { this.estado = estado; }
 
     public Long getMascotaId() { return mascotaId; }
     public void setMascotaId(Long mascotaId) { this.mascotaId = mascotaId; }

@@ -11,11 +11,11 @@ public class Turno {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "codigo_turno", nullable = false, length = 20, unique = true)
+    @Column(name = "codigo_turno", nullable = false, unique = true)
     private String codigoTurno;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "estado", nullable = false, length = 20)
+    @Column(nullable = false)
     private EstadoTurno estado;
 
     @Column(name = "fecha_creacion", nullable = false)
@@ -24,7 +24,10 @@ public class Turno {
     @Column(name = "fecha_atencion")
     private LocalDateTime fechaAtencion;
 
-    @Column(name = "motivo_consulta", length = 255)
+    @Column(name = "fecha_fin_consulta")
+    private LocalDateTime fechaFinConsulta;
+
+    @Column(name = "motivo_consulta")
     private String motivoConsulta;
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -61,6 +64,9 @@ public class Turno {
 
     public LocalDateTime getFechaAtencion() { return fechaAtencion; }
     public void setFechaAtencion(LocalDateTime fechaAtencion) { this.fechaAtencion = fechaAtencion; }
+
+    public LocalDateTime getFechaFinConsulta() { return fechaFinConsulta; }
+    public void setFechaFinConsulta(LocalDateTime fechaFinConsulta) { this.fechaFinConsulta = fechaFinConsulta; }
 
     public String getMotivoConsulta() { return motivoConsulta; }
     public void setMotivoConsulta(String motivoConsulta) { this.motivoConsulta = motivoConsulta; }
