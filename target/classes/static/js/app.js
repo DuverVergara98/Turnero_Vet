@@ -1,6 +1,6 @@
-let turnosData = [];
+// === ESTADO GLOBAL CON RESPALDO INMEDIATO EN LOCALSTORAGE ===
+let turnosData = JSON.parse(localStorage.getItem('turnos_vet_cache') || '[]');
 
-// Configuración por defecto personalizable
 let appConfig = JSON.parse(localStorage.getItem('app_config_vet')) || {
     pedirTelTutor: true,
     pedirDocTutor: false,
@@ -21,11 +21,14 @@ let medicosData = JSON.parse(localStorage.getItem('medicos_vet_cache')) || [
 document.addEventListener("DOMContentLoaded", () => {
     aplicarConfiguracionUI();
     inicializar();
-    setInterval(sincronizarConServidor, 2500);
+    setInterval(sincronizarConServidor, 3000);
 });
 
 function aplicarConfiguracionUI() {
-    document.getElementById('cfgTelTutor').checked = appConfig.pedirTelTutor;
+    const elTel = document.getElementById('cfgTelTutor');
+    if (!elTel) return;
+
+    elTel.checked = appConfig.pedirTelTutor;
     document.getElementById('cfgDocTutor').checked = appConfig.pedirDocTutor;
     document.getElementById('cfgPesoMascota').checked = appConfig.pedirPesoMascota;
     document.getElementById('cfgEdadMascota').checked = appConfig.pedirEdadMascota;
@@ -61,34 +64,80 @@ function guardarConfiguracion(e) {
     bootstrap.Modal.getInstance(document.getElementById('modalConfiguracion')).hide();
 }
 
+// === SINCRONIZACIÓN DOBLE: H2 + LOCALSTORAGE ===
 async function sincronizarConServidor() {
     try {
-        const res = await fetch('/api/turnos');
-        if (res.ok) {
-            const data = await res.json();
-            if (JSON.stringify(data) !== JSON.stringify(turnosData)) {
-                turnosData = data;
+        const [resTurnos, resMascotas, resMedicos] = await Promise.all([
+            fetch('/api/sync/TURNOS'),
+            fetch('/api/sync/MASCOTAS'),
+            fetch('/api/sync/MEDICOS')
+        ]);
+
+        let cambio = false;
+
+        if (resTurnos.ok) {
+            const tData = await resTurnos.json();
+            if (Array.isArray(tData) && tData.length > 0 && JSON.stringify(tData) !== JSON.stringify(turnosData)) {
+                turnosData = tData;
                 localStorage.setItem('turnos_vet_cache', JSON.stringify(turnosData));
-                renderizarTurnos();
+                cambio = true;
             }
         }
+        if (resMascotas.ok) {
+            const mData = await resMascotas.json();
+            if (Array.isArray(mData) && mData.length > 0 && JSON.stringify(mData) !== JSON.stringify(mascotasData)) {
+                mascotasData = mData;
+                localStorage.setItem('mascotas_vet_cache', JSON.stringify(mascotasData));
+                cambio = true;
+            }
+        }
+        if (resMedicos.ok) {
+            const medData = await resMedicos.json();
+            if (Array.isArray(medData) && medData.length > 0 && JSON.stringify(medData) !== JSON.stringify(medicosData)) {
+                medicosData = medData;
+                localStorage.setItem('medicos_vet_cache', JSON.stringify(medicosData));
+                cambio = true;
+            }
+        }
+
+        if (cambio) {
+            renderizarTurnos();
+            renderizarMascotas();
+            renderizarMedicos();
+        }
     } catch (e) {
-        console.log("Modo offline o reconectando...");
+        console.warn("Modo offline activo - usando datos de localStorage.");
     }
 }
 
 async function inicializar() {
-    await sincronizarConServidor();
+    // Dibujar inmediatamente lo que haya en localStorage para cero latencia
+    renderizarTurnos();
     renderizarMascotas();
     renderizarMedicos();
+    // Luego sincronizar con H2
+    await sincronizarConServidor();
 }
 
-function guardarEnStorage() {
+async function guardarEnStorage() {
+    // 1. Guardar inmediatamente en el navegador (localStorage)
     localStorage.setItem('turnos_vet_cache', JSON.stringify(turnosData));
     localStorage.setItem('mascotas_vet_cache', JSON.stringify(mascotasData));
     localStorage.setItem('medicos_vet_cache', JSON.stringify(medicosData));
+
+    // 2. Guardar en la Base de Datos H2 del servidor
+    try {
+        await Promise.all([
+            fetch('/api/sync/TURNOS', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(turnosData) }),
+            fetch('/api/sync/MASCOTAS', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mascotasData) }),
+            fetch('/api/sync/MEDICOS', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(medicosData) })
+        ]);
+    } catch (e) {
+        console.error("Error sincronizando con H2 (respaldado en localStorage):", e);
+    }
 }
 
+// === FORMATEO Y TIEMPOS ===
 function formatearHora(ts) {
     if (!ts) return '-';
     return new Date(ts).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -96,14 +145,12 @@ function formatearHora(ts) {
 
 function calcularTiempoEspera(tsRegistro, tsInicioAtencion, estado) {
     if (!tsRegistro) return '-';
-
     let fin = tsInicioAtencion;
     if (!fin) {
         if (estado === 'Atendido') return 'Atendido';
         fin = new Date().getTime();
     }
-
-    const difMs = fin - tsRegistro;
+    const difMs = Math.max(0, fin - tsRegistro);
     const mins = Math.floor(difMs / (1000 * 60));
 
     if (mins < 1) return '< 1 min';
@@ -115,15 +162,15 @@ function calcularTiempoEspera(tsRegistro, tsInicioAtencion, estado) {
     return `${mins} min`;
 }
 
-function calcularDuracionConsulta(tsInicio, tsFin) {
+function calcularDuracionConsulta(tsInicio, tsFin, estado) {
     if (!tsInicio) return '-';
-    if (!tsFin) return '<span class="badge bg-info text-dark">En curso</span>';
-
-    const difMs = tsFin - tsInicio;
+    if (!tsFin || estado !== 'Atendido') {
+        return '<span class="badge bg-info text-dark">En curso</span>';
+    }
+    const difMs = Math.max(0, tsFin - tsInicio);
     const mins = Math.floor(difMs / (1000 * 60));
     const segs = Math.floor((difMs % (1000 * 60)) / 1000);
-
-    return `${mins}m ${segs}s`;
+    return `<span class="fw-bold text-success">${mins}m ${segs}s</span>`;
 }
 
 function abrirPantallaTV() {
@@ -136,44 +183,31 @@ function cerrarSesion() {
     }
 }
 
-// FILTROS
+// === FILTROS ===
 function filtrarTablaTurnos() {
     const query = document.getElementById('inputFiltroTurnos').value.toLowerCase().trim();
-    const filas = document.querySelectorAll('#tablaTurnos tr');
-
-    filas.forEach(fila => {
-        const textoFila = fila.innerText.toLowerCase();
-        fila.style.display = textoFila.includes(query) ? '' : 'none';
+    document.querySelectorAll('#tablaTurnos tr').forEach(fila => {
+        fila.style.display = fila.innerText.toLowerCase().includes(query) ? '' : 'none';
     });
 }
 
 function filtrarTablaMascotas() {
     const query = document.getElementById('inputFiltroMascotas').value.toLowerCase().trim();
-    const filas = document.querySelectorAll('#tablaMascotas tr');
-
-    filas.forEach(fila => {
-        const textoFila = fila.innerText.toLowerCase();
-        fila.style.display = textoFila.includes(query) ? '' : 'none';
+    document.querySelectorAll('#tablaMascotas tr').forEach(fila => {
+        fila.style.display = fila.innerText.toLowerCase().includes(query) ? '' : 'none';
     });
 }
 
 function filtrarTablaMedicos() {
     const query = document.getElementById('inputFiltroMedicos').value.toLowerCase().trim();
-    const filas = document.querySelectorAll('#tablaMedicos tr');
-
-    filas.forEach(fila => {
-        const textoFila = fila.innerText.toLowerCase();
-        fila.style.display = textoFila.includes(query) ? '' : 'none';
+    document.querySelectorAll('#tablaMedicos tr').forEach(fila => {
+        fila.style.display = fila.innerText.toLowerCase().includes(query) ? '' : 'none';
     });
 }
 
-// EXPORTACIONES A EXCEL
+// === EXPORTACIONES EXCEL ===
 function exportarTurnosExcel() {
-    if (turnosData.length === 0) {
-        alert("No hay turnos registrados para exportar.");
-        return;
-    }
-
+    if (turnosData.length === 0) return alert("No hay turnos registrados para exportar.");
     const datosExcel = turnosData.map(t => ({
         "Código Turno": t.codigoTurno,
         "Mascota": t.mascota ? t.mascota.nombre : 'N/A',
@@ -184,65 +218,46 @@ function exportarTurnosExcel() {
         "Estado": t.estado,
         "Consultorio": t.consultorio || 'Consultorio 1',
         "Hora Registro": formatearHora(t.timestampRegistro),
-        "Tiempo Espera": calcularTiempoEspera(t.timestampRegistro, t.timestampInicioAtencion, t.estado),
-        "Duración Consulta": t.timestampFinConsulta ? calcularDuracionConsulta(t.timestampInicioAtencion, t.timestampFinConsulta) : '-'
+        "Tiempo Espera": calcularTiempoEspera(t.timestampRegistro, t.timestampInicioAtencion, t.estado)
     }));
-
     const hoja = XLSX.utils.json_to_sheet(datosExcel);
     const libro = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(libro, hoja, "Reporte Turnos y Tiempos");
-
-    const fechaHoy = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(libro, `Reporte_Turnos_y_Tiempos_${fechaHoy}.xlsx`);
+    XLSX.utils.book_append_sheet(libro, hoja, "Reporte Turnos");
+    XLSX.writeFile(libro, `Reporte_Turnos_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 function exportarMascotasExcel() {
-    if (mascotasData.length === 0) {
-        alert("No hay mascotas registradas para exportar.");
-        return;
-    }
-
+    if (mascotasData.length === 0) return alert("No hay mascotas registradas para exportar.");
     const datosExcel = mascotasData.map(m => ({
-        "ID Mascota": m.idMascota,
-        "Nombre Mascota": m.nombre,
-        "Tutor / Propietario": m.nombreTutor,
-        "Celular / WhatsApp": m.telTutor || 'No registrado',
-        "Documento Tutor": m.docTutor || 'No registrado',
-        "Especie": m.especie || 'N/A',
-        "Raza": m.raza || 'N/A',
-        "Peso (kg)": m.peso ? m.peso + " kg" : 'N/A',
-        "Edad / F. Nacimiento": m.edad || 'N/A'
+        "ID": m.idMascota,
+        "Mascota": m.nombre,
+        "Tutor": m.nombreTutor,
+        "Celular": m.telTutor || '-',
+        "Especie": m.especie || '-',
+        "Raza": m.raza || '-',
+        "Peso (kg)": m.peso || '-'
     }));
-
     const hoja = XLSX.utils.json_to_sheet(datosExcel);
     const libro = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(libro, hoja, "Directorio Mascotas y Tutores");
-
-    const fechaHoy = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(libro, `Directorio_Mascotas_y_Tutores_${fechaHoy}.xlsx`);
+    XLSX.utils.book_append_sheet(libro, hoja, "Directorio Mascotas");
+    XLSX.writeFile(libro, `Directorio_Mascotas_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 function exportarMedicosExcel() {
-    if (medicosData.length === 0) {
-        alert("No hay médicos registrados para exportar.");
-        return;
-    }
-
+    if (medicosData.length === 0) return alert("No hay médicos registrados para exportar.");
     const datosExcel = medicosData.map(med => ({
-        "ID Médico": med.idMedico,
-        "Nombre Completo": med.nombre,
-        "Especialidad": med.especialidad || 'General',
-        "Tarjeta Profesional": med.tarjetaProfesional || 'N/A'
+        "ID": med.idMedico,
+        "Nombre": med.nombre,
+        "Especialidad": med.especialidad || '-',
+        "Tarjeta Profesional": med.tarjetaProfesional || '-'
     }));
-
     const hoja = XLSX.utils.json_to_sheet(datosExcel);
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, "Personal Médico");
-
-    const fechaHoy = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(libro, `Personal_Medico_${fechaHoy}.xlsx`);
+    XLSX.writeFile(libro, `Personal_Medico_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+// === RENDERIZADO Y CRUD DE TURNOS ===
 function renderizarTurnos() {
     const tbody = document.getElementById('tablaTurnos');
     if (!tbody) return;
@@ -256,8 +271,8 @@ function renderizarTurnos() {
         if (t.estado === 'En espera' || t.estado === 'Llamando') espera++;
         if (t.estado === 'Atendido') atendidos++;
 
-        const badgePrioridad = t.prioridad.idPrioridad == 1 ? 'badge-prioridad-alta' :
-                              (t.prioridad.idPrioridad == 2 ? 'badge-prioridad-media' : 'badge-prioridad-baja');
+        const prioId = t.prioridad ? t.prioridad.idPrioridad : 2;
+        const badgePrioridad = prioId == 1 ? 'badge-prioridad-alta' : (prioId == 2 ? 'badge-prioridad-media' : 'badge-prioridad-baja');
 
         let badgeEstado = 'bg-secondary';
         if (t.estado === 'En espera') badgeEstado = 'bg-warning text-dark';
@@ -266,43 +281,35 @@ function renderizarTurnos() {
         else if (t.estado === 'Atendido') badgeEstado = 'bg-success text-white';
 
         const tiempoEsperaTexto = calcularTiempoEspera(t.timestampRegistro, t.timestampInicioAtencion, t.estado);
-        const duracionTexto = calcularDuracionConsulta(t.timestampInicioAtencion, t.timestampFinConsulta);
+        const duracionTexto = calcularDuracionConsulta(t.timestampInicioAtencion, t.timestampFinConsulta, t.estado);
 
         tbody.innerHTML += `
             <tr>
                 <td class="fw-bold fs-5 text-primary">${t.codigoTurno}</td>
                 <td>
-                    <div class="fw-bold">🐾 ${t.mascota.nombre}</div>
-                    <small class="text-muted">Tutor: ${t.mascota.nombreTutor}</small>
+                    <div class="fw-bold">🐾 ${t.mascota ? t.mascota.nombre : 'Sin nombre'}</div>
+                    <small class="text-muted">Tutor: ${t.mascota ? t.mascota.nombreTutor : 'N/A'}</small>
                 </td>
+                <td><span class="badge bg-light text-dark border border-secondary fw-bold">${t.servicio || 'Consulta General'}</span></td>
+                <td>${t.medico ? t.medico.nombre : 'Sin asignar'}</td>
                 <td>
-                    <span class="badge bg-light text-dark border border-secondary fw-bold">${t.servicio || 'Consulta General'}</span>
-                </td>
-                <td>${t.medico.nombre}</td>
-                <td>
-                    <span class="badge ${badgePrioridad} mb-1 d-inline-block">${t.prioridad.nombrePrioridad}</span><br>
-                    <span class="badge ${badgeEstado}">${t.estado.toUpperCase()}</span>
+                    <span class="badge ${badgePrioridad} mb-1 d-inline-block">${t.prioridad ? t.prioridad.nombrePrioridad : 'Media'}</span><br>
+                    <span class="badge ${badgeEstado}">${(t.estado || 'En espera').toUpperCase()}</span>
                 </td>
                 <td class="fw-semibold text-dark">${formatearHora(t.timestampRegistro)}</td>
                 <td class="fw-bold text-danger">${tiempoEsperaTexto}</td>
                 <td class="fw-semibold text-secondary">${duracionTexto}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-outline-danger me-1" onclick="abrirModalLlamar(${idx})" title="Llamar a Pantalla TV">
-                        <i class="bi bi-megaphone-fill me-1"></i>Llamar
+                    <button class="btn btn-sm btn-outline-danger me-1" onclick="abrirModalLlamar(${idx})" title="Llamar a TV">
+                        <i class="bi bi-megaphone-fill"></i> Llamar
                     </button>
-                    <button class="btn btn-sm btn-outline-primary me-1" onclick="cambiarEstadoDirecto(${idx}, 'Atendiendo')" title="Ingresar a Consultorio">
-                        <i class="bi bi-play-fill me-1"></i>Atender
+                    <button class="btn btn-sm btn-outline-success me-1" onclick="cambiarEstadoDirecto(${idx}, 'Atendido')" title="Finalizar Consulta">
+                        <i class="bi bi-check-lg"></i>
                     </button>
-                    <button class="btn btn-sm btn-success me-1 fw-bold" onclick="cambiarEstadoDirecto(${idx}, 'Atendido')" title="Marcar Consulta como Finalizada">
-                        <i class="bi bi-check-circle-fill me-1"></i>Finalizar
-                    </button>
-                    <button class="btn btn-sm btn-outline-warning me-1 text-dark" onclick="cambiarEstadoDirecto(${idx}, 'En espera')" title="Devolver a Sala de Espera">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>A Espera
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="editarTurnoModal(${idx})" title="Editar Turno">
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="editarTurnoModal(${idx})" title="Editar">
                         <i class="bi bi-pencil"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-dark" onclick="eliminarTurno(${idx})" title="Eliminar Turno">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="eliminarTurno(${idx})" title="Eliminar">
                         <i class="bi bi-trash"></i>
                     </button>
                 </td>
@@ -310,9 +317,9 @@ function renderizarTurnos() {
         `;
     });
 
-    document.getElementById('statTotal').innerText = total;
-    document.getElementById('statEspera').innerText = espera;
-    document.getElementById('statAtendidos').innerText = atendidos;
+    if (document.getElementById('statTotal')) document.getElementById('statTotal').innerText = total;
+    if (document.getElementById('statEspera')) document.getElementById('statEspera').innerText = espera;
+    if (document.getElementById('statAtendidos')) document.getElementById('statAtendidos').innerText = atendidos;
 }
 
 function abrirModalLlamar(index) {
@@ -321,35 +328,27 @@ function abrirModalLlamar(index) {
     modal.show();
 }
 
-document.getElementById('formLlamarConsultorio').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const idx = document.getElementById('llamarTurnoIndex').value;
-    const consultorioVal = document.getElementById('selectConsultorio').value;
+const formLlamar = document.getElementById('formLlamarConsultorio');
+if (formLlamar) {
+    formLlamar.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const idx = document.getElementById('llamarTurnoIndex').value;
+        const consultorioVal = document.getElementById('selectConsultorio').value;
+        const ahoraTimestamp = new Date().getTime();
 
-    const ahoraTimestamp = new Date().getTime();
-    turnosData[idx].estado = 'Llamando';
-    turnosData[idx].consultorio = consultorioVal;
-    turnosData[idx].timestampLlamada = ahoraTimestamp;
+        turnosData[idx].estado = 'Llamando';
+        turnosData[idx].consultorio = consultorioVal;
+        turnosData[idx].timestampLlamada = ahoraTimestamp;
+        if (!turnosData[idx].timestampInicioAtencion) {
+            turnosData[idx].timestampInicioAtencion = ahoraTimestamp;
+        }
 
-    if (!turnosData[idx].timestampInicioAtencion) {
-        turnosData[idx].timestampInicioAtencion = ahoraTimestamp;
-    }
-
-    await fetch('/api/turnos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(turnosData[idx])
+        localStorage.setItem('ultimo_llamado_event', JSON.stringify({ ...turnosData[idx], timestamp: ahoraTimestamp }));
+        await guardarEnStorage();
+        renderizarTurnos();
+        bootstrap.Modal.getInstance(document.getElementById('modalLlamar')).hide();
     });
-
-    localStorage.setItem('ultimo_llamado_event', JSON.stringify({
-        ...turnosData[idx],
-        timestamp: ahoraTimestamp
-    }));
-
-    guardarEnStorage();
-    renderizarTurnos();
-    bootstrap.Modal.getInstance(document.getElementById('modalLlamar')).hide();
-});
+}
 
 async function cambiarEstadoDirecto(index, nuevoEstado) {
     const ahora = new Date().getTime();
@@ -357,7 +356,6 @@ async function cambiarEstadoDirecto(index, nuevoEstado) {
     if (!turno) return;
 
     turno.estado = nuevoEstado;
-
     if (nuevoEstado === 'Atendiendo' && !turno.timestampInicioAtencion) {
         turno.timestampInicioAtencion = ahora;
     } else if (nuevoEstado === 'Atendido') {
@@ -367,13 +365,7 @@ async function cambiarEstadoDirecto(index, nuevoEstado) {
         turno.timestampFinConsulta = ahora;
     }
 
-    await fetch('/api/turnos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(turno)
-    });
-
-    guardarEnStorage();
+    await guardarEnStorage();
     renderizarTurnos();
 }
 
@@ -395,7 +387,6 @@ function editarTurnoModal(index) {
     const t = turnosData[index];
     document.getElementById('modalTurnoTitulo').innerText = "Modificar Turno y Prioridad";
     document.getElementById('turnoIndex').value = index;
-    
     document.getElementById('codigoTurnoNumero').value = t.codigoTurno.replace('T-', '');
     document.getElementById('inputMascotaBusqueda').value = `${t.mascota.nombre} (Tutor: ${t.mascota.nombreTutor})`;
     document.getElementById('selectServicio').value = t.servicio || 'Consulta General';
@@ -409,69 +400,74 @@ function editarTurnoModal(index) {
 
 async function eliminarTurno(index) {
     if (confirm('¿Eliminar este turno?')) {
-        await fetch(`/api/turnos/${index}`, { method: 'DELETE' });
         turnosData.splice(index, 1);
-        guardarEnStorage();
+        await guardarEnStorage();
         renderizarTurnos();
     }
 }
 
-document.getElementById('formTurno').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const indexStr = document.getElementById('turnoIndex').value;
-    const numInput = document.getElementById('codigoTurnoNumero').value.trim();
-    const codigoFinal = numInput.startsWith('T-') ? numInput : `T-${numInput}`;
+const formTurno = document.getElementById('formTurno');
+if (formTurno) {
+    formTurno.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const indexStr = document.getElementById('turnoIndex').value;
+        const numInput = document.getElementById('codigoTurnoNumero').value.trim();
+        const codigoFinal = numInput.startsWith('T-') ? numInput : `T-${numInput}`;
 
-    const busquedaVal = document.getElementById('inputMascotaBusqueda').value;
-    const partes = busquedaVal.split(' (Tutor: ');
-    const nombreMascota = partes[0] || 'Mascota';
-    const tutorMascota = partes[1] ? partes[1].replace(')', '') : 'Tutor';
+        const busquedaVal = document.getElementById('inputMascotaBusqueda').value;
+        const partes = busquedaVal.split(' (Tutor: ');
+        const nombreMascota = partes[0] || 'Mascota';
+        const tutorMascota = partes[1] ? partes[1].replace(')', '') : 'Tutor';
 
-    const prioVal = document.getElementById('selectPrioridad').value;
-    const prioTexto = prioVal == 1 ? 'Alta - Urgencia' : (prioVal == 2 ? 'Media - Consulta' : 'Baja - Control');
+        const prioVal = document.getElementById('selectPrioridad').value;
+        const prioTexto = prioVal == 1 ? 'Alta - Urgencia' : (prioVal == 2 ? 'Media - Consulta' : 'Baja - Control');
+        const servicioVal = document.getElementById('selectServicio').value;
+        const estadoVal = document.getElementById('selectEstado').value;
+        const ahora = new Date().getTime();
 
-    const servicioVal = document.getElementById('selectServicio').value;
-    const ahora = new Date().getTime();
+        const previo = indexStr !== "" ? turnosData[indexStr] : null;
+        let tsFin = previo ? previo.timestampFinConsulta : null;
+        let tsInicio = previo ? previo.timestampInicioAtencion : null;
 
-    const turnoObj = {
-        idTurno: indexStr !== "" ? turnosData[indexStr].idTurno : turnosData.length + 1,
-        codigoTurno: codigoFinal,
-        mascota: { nombre: nombreMascota, nombreTutor: tutorMascota },
-        servicio: servicioVal,
-        medico: { nombre: document.getElementById('selectMedico').value || 'Médico General' },
-        prioridad: { idPrioridad: parseInt(prioVal), nombrePrioridad: prioTexto },
-        estado: document.getElementById('selectEstado').value,
-        consultorio: indexStr !== "" ? (turnosData[indexStr].consultorio || 'Consultorio 1') : 'Consultorio 1',
-        timestampLlamada: indexStr !== "" ? (turnosData[indexStr].timestampLlamada || 0) : 0,
-        timestampRegistro: indexStr !== "" ? (turnosData[indexStr].timestampRegistro || ahora) : ahora,
-        timestampInicioAtencion: indexStr !== "" ? (turnosData[indexStr].timestampInicioAtencion || null) : null,
-        timestampFinConsulta: indexStr !== "" ? (turnosData[indexStr].timestampFinConsulta || null) : null
-    };
+        if (estadoVal === 'Atendido' && !tsFin) {
+            if (!tsInicio) tsInicio = ahora - (5 * 60 * 1000);
+            tsFin = ahora;
+        }
 
-    await fetch('/api/turnos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(turnoObj)
+        const turnoObj = {
+            idTurno: previo ? previo.idTurno : turnosData.length + 1,
+            codigoTurno: codigoFinal,
+            mascota: { nombre: nombreMascota, nombreTutor: tutorMascota },
+            servicio: servicioVal,
+            medico: { nombre: document.getElementById('selectMedico').value || 'Médico General' },
+            prioridad: { idPrioridad: parseInt(prioVal), nombrePrioridad: prioTexto },
+            estado: estadoVal,
+            consultorio: previo ? (previo.consultorio || 'Consultorio 1') : 'Consultorio 1',
+            timestampLlamada: previo ? (previo.timestampLlamada || 0) : 0,
+            timestampRegistro: previo ? (previo.timestampRegistro || ahora) : ahora,
+            timestampInicioAtencion: tsInicio,
+            timestampFinConsulta: tsFin
+        };
+
+        if (indexStr !== "") {
+            turnosData[indexStr] = turnoObj;
+        } else {
+            turnosData.push(turnoObj);
+        }
+
+        await guardarEnStorage();
+        renderizarTurnos();
+        bootstrap.Modal.getInstance(document.getElementById('modalTurno')).hide();
     });
+}
 
-    if (indexStr !== "") {
-        turnosData[indexStr] = turnoObj;
-    } else {
-        turnosData.push(turnoObj);
-    }
-
-    guardarEnStorage();
-    renderizarTurnos();
-    bootstrap.Modal.getInstance(document.getElementById('modalTurno')).hide();
-});
-
-// MASCOTAS & TUTORES (CRUD CON CAMPOS DINÁMICOS)
+// === RENDERIZADO Y CRUD DE MASCOTAS / PACIENTES ===
 function renderizarMascotas() {
     const tbody = document.getElementById('tablaMascotas');
     const datalist = document.getElementById('listaMascotasDatalist');
-    if (!tbody || !datalist) return;
+    if (!tbody) return;
     tbody.innerHTML = '';
-    datalist.innerHTML = '';
+    if (datalist) datalist.innerHTML = '';
 
     mascotasData.forEach((m, idx) => {
         const tdTel = appConfig.pedirTelTutor ? `<td>${m.telTutor || '-'}</td>` : '';
@@ -491,8 +487,9 @@ function renderizarMascotas() {
                 </td>
             </tr>
         `;
-        datalist.innerHTML += `<option value="${m.nombre} (Tutor: ${m.nombreTutor})"></option>`;
-        datalist.innerHTML += `<option value="${m.nombreTutor} - ${m.telTutor ? m.telTutor : ''}"></option>`;
+        if (datalist) {
+            datalist.innerHTML += `<option value="${m.nombre} (Tutor: ${m.nombreTutor})"></option>`;
+        }
     });
 }
 
@@ -519,62 +516,67 @@ function editarMascotaModal(index) {
     modal.show();
 }
 
-document.getElementById('formMascota').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const indexStr = document.getElementById('mascotaIndex').value;
-    const mascotaObj = {
-        idMascota: indexStr !== "" ? mascotasData[indexStr].idMascota : mascotasData.length + 1,
-        nombre: document.getElementById('mascotaNombre').value,
-        nombreTutor: document.getElementById('mascotaTutor').value,
-        telTutor: document.getElementById('mascotaTelTutor').value,
-        docTutor: document.getElementById('mascotaDocTutor').value,
-        especie: document.getElementById('mascotaEspecie').value,
-        raza: document.getElementById('mascotaRaza').value,
-        peso: document.getElementById('mascotaPeso').value ? parseFloat(document.getElementById('mascotaPeso').value) : null,
-        edad: document.getElementById('mascotaEdad').value
-    };
-
-    if (indexStr !== "") {
-        mascotasData[indexStr] = mascotaObj;
-    } else {
-        mascotasData.push(mascotaObj);
-    }
-
-    guardarEnStorage();
-    renderizarMascotas();
-    bootstrap.Modal.getInstance(document.getElementById('modalMascota')).hide();
-});
-
-function eliminarMascota(index) {
-    if (confirm('¿Eliminar esta mascota?')) {
+async function eliminarMascota(index) {
+    if (confirm('¿Eliminar esta mascota del directorio?')) {
         mascotasData.splice(index, 1);
-        guardarEnStorage();
+        await guardarEnStorage();
         renderizarMascotas();
     }
 }
 
-// MÉDICOS (CRUD)
+const formMascota = document.getElementById('formMascota');
+if (formMascota) {
+    formMascota.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const indexStr = document.getElementById('mascotaIndex').value;
+        const mascotaObj = {
+            idMascota: indexStr !== "" ? mascotasData[indexStr].idMascota : mascotasData.length + 1,
+            nombre: document.getElementById('mascotaNombre').value.trim(),
+            nombreTutor: document.getElementById('mascotaTutor').value.trim(),
+            telTutor: document.getElementById('mascotaTelTutor').value.trim(),
+            docTutor: document.getElementById('mascotaDocTutor').value.trim(),
+            especie: document.getElementById('mascotaEspecie').value.trim(),
+            raza: document.getElementById('mascotaRaza').value.trim(),
+            peso: document.getElementById('mascotaPeso').value,
+            edad: document.getElementById('mascotaEdad').value.trim()
+        };
+
+        if (indexStr !== "") {
+            mascotasData[indexStr] = mascotaObj;
+        } else {
+            mascotasData.push(mascotaObj);
+        }
+
+        await guardarEnStorage();
+        renderizarMascotas();
+        bootstrap.Modal.getInstance(document.getElementById('modalMascota')).hide();
+    });
+}
+
+// === RENDERIZADO Y CRUD DE MÉDICOS ===
 function renderizarMedicos() {
     const tbody = document.getElementById('tablaMedicos');
     const select = document.getElementById('selectMedico');
-    if (!tbody || !select) return;
+    if (!tbody) return;
     tbody.innerHTML = '';
-    select.innerHTML = '<option value="">Seleccione un médico...</option>';
+    if (select) select.innerHTML = '<option value="">Seleccione un médico...</option>';
 
     medicosData.forEach((med, idx) => {
         tbody.innerHTML += `
             <tr>
                 <td>${med.idMedico}</td>
                 <td class="fw-bold">${med.nombre}</td>
-                <td>${med.especialidad}</td>
-                <td>${med.tarjetaProfesional}</td>
+                <td>${med.especialidad || '-'}</td>
+                <td>${med.tarjetaProfesional || '-'}</td>
                 <td class="text-end">
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="editarMedicoModal(${idx})"><i class="bi bi-pencil"></i></button>
                     <button class="btn btn-sm btn-outline-danger" onclick="eliminarMedico(${idx})"><i class="bi bi-trash"></i></button>
                 </td>
             </tr>
         `;
-        select.innerHTML += `<option value="${med.nombre}">${med.nombre} - ${med.especialidad}</option>`;
+        if (select) {
+            select.innerHTML += `<option value="${med.nombre}">${med.nombre} - ${med.especialidad}</option>`;
+        }
     });
 }
 
@@ -589,38 +591,41 @@ function editarMedicoModal(index) {
     document.getElementById('modalMedicoTitulo').innerText = "Editar Médico";
     document.getElementById('medicoIndex').value = index;
     document.getElementById('medicoNombre').value = med.nombre;
-    document.getElementById('medicoEspecialidad').value = med.especialidad;
-    document.getElementById('medicoTarjeta').value = med.tarjetaProfesional;
+    document.getElementById('medicoEspecialidad').value = med.especialidad || '';
+    document.getElementById('medicoTarjeta').value = med.tarjetaProfesional || '';
 
     const modal = new bootstrap.Modal(document.getElementById('modalMedico'));
     modal.show();
 }
 
-document.getElementById('formMedico').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const indexStr = document.getElementById('medicoIndex').value;
-    const medicoObj = {
-        idMedico: indexStr !== "" ? medicosData[indexStr].idMedico : medicosData.length + 1,
-        nombre: document.getElementById('medicoNombre').value,
-        especialidad: document.getElementById('medicoEspecialidad').value,
-        tarjetaProfesional: document.getElementById('medicoTarjeta').value
-    };
-
-    if (indexStr !== "") {
-        medicosData[indexStr] = medicoObj;
-    } else {
-        medicosData.push(medicoObj);
-    }
-
-    guardarEnStorage();
-    renderizarMedicos();
-    bootstrap.Modal.getInstance(document.getElementById('modalMedico')).hide();
-});
-
-function eliminarMedico(index) {
+async function eliminarMedico(index) {
     if (confirm('¿Eliminar este médico?')) {
         medicosData.splice(index, 1);
-        guardarEnStorage();
+        await guardarEnStorage();
         renderizarMedicos();
     }
+}
+
+const formMedico = document.getElementById('formMedico');
+if (formMedico) {
+    formMedico.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const indexStr = document.getElementById('medicoIndex').value;
+        const medicoObj = {
+            idMedico: indexStr !== "" ? medicosData[indexStr].idMedico : medicosData.length + 1,
+            nombre: document.getElementById('medicoNombre').value.trim(),
+            especialidad: document.getElementById('medicoEspecialidad').value.trim(),
+            tarjetaProfesional: document.getElementById('medicoTarjeta').value.trim()
+        };
+
+        if (indexStr !== "") {
+            medicosData[indexStr] = medicoObj;
+        } else {
+            medicosData.push(medicoObj);
+        }
+
+        await guardarEnStorage();
+        renderizarMedicos();
+        bootstrap.Modal.getInstance(document.getElementById('modalMedico')).hide();
+    });
 }
